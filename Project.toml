@@ -3,11 +3,17 @@ uuid = "3096924e-154f-4f74-b9f4-9a632374c66c"
 authors = ["Samuel Cornwall"]
 version = "0.1.0"
 
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+[deps]
+NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
+NearestNeighbors = "0.4.21"
+StaticArrays = "1.9.12"
 julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
