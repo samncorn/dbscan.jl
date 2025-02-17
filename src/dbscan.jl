@@ -15,8 +15,10 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1)
     Threads.@threads for i in 1:n_chunks
         points_idx = chunks[i]
         mergers[i] = _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, Inf)
+    end 
+    for m in mergers
+        resolve_cluster_merge!(labels, m)
     end
-    resolve_cluster_merge!(labels, collect(Iterators.flatten(mergers)))
     promote_labels!(labels)
     return labels
 end
