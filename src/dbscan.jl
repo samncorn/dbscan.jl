@@ -8,8 +8,15 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1)
     N = length(points)
     labels = zeros(Int, N)
 
-    # mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_chunks)
-    _dbscan_kernel!(labels, tree, points, eachindex(points), r, min_pts, Inf)
+    mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_chunks)
+    chunksize = ceil(Int, N / n_chunks)
+    chunks = collect(Iterators.partition(eachindex(points), chunksize))
+
+    Threads.@threads for i in 1:n_chunks
+        points_idx = chunks[i]
+        mergers[i] = _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, Inf)
+    end
+    resolve_cluster_merge!(labels, collect(Iterators.flatten(mergers)))
     promote_labels!(labels)
     return labels
 end
@@ -38,7 +45,7 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
             join_labels!(labels, i, j)
         end
     end
-    return 
+    return mergers
 end
 
 """
@@ -95,16 +102,26 @@ function join_labels!(labels, ii, jj)
     end
 end
 
-function resolve_cluster_merge!(labels, merges)
-    for (i, j) in merges
-        if labels[i] == 0 && labels[j] == 0 
-            # only join two noise points if min pts is small enough
-            if min_pts == 2
-                labels[i] = i
-                labels[j] = i
+function resolve_cluster_merge!(labels, mergers)
+    locks = [ReentrantLock() for _ in labels]
+    Threads.@threads for (i, j) in mergers
+        begin 
+            lock(locks[i])
+            lock(locks[j])
+            try
+                if labels[i] == 0 && labels[j] == 0 
+                    # only join two noise points if min pts is small enough
+                    if min_pts == 2
+                        labels[i] = i
+                        labels[j] = i
+                    end
+                else
+                    join_labels!(labels, i, j)
+                end
+            finally
+                unlock(locks[i])
+                unlock(locks[j])
             end
-        else
-            join_labels!(labels, i, j)
         end
     end
 end
