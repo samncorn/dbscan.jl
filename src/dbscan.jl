@@ -17,10 +17,14 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1)
         mergers[i] = _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, Inf)
     end 
     for m in mergers
-        resolve_cluster_merge!(labels, m)
+        locks = [ReentrantLock() for _ in labels]
+        Threads.@threads for (i, j) in m
+            join_labels_locking!(labels, locks, i, j, min_pts)
+        end
     end
     promote_labels!(labels)
-    return labels
+    # collect labels into clusters
+    return collect_labels(labels)
 end
 
 function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
@@ -104,28 +108,63 @@ function join_labels!(labels, ii, jj)
     end
 end
 
-function resolve_cluster_merge!(labels, mergers)
-    locks = [ReentrantLock() for _ in labels]
-    Threads.@threads for (i, j) in mergers
-        begin 
-            lock(locks[i])
-            lock(locks[j])
-            try
-                if labels[i] == 0 && labels[j] == 0 
-                    # only join two noise points if min pts is small enough
-                    if min_pts == 2
-                        labels[i] = i
-                        labels[j] = i
-                    end
-                else
-                    join_labels!(labels, i, j)
+function join_labels_locking!(labels, locks, ii, jj, min_pts)
+    i = ii
+    j = jj
+
+    if labels[i] == 0 && labels[j] == 0 && min_pts <= 2
+        lock(locks[i])
+        lock(locks[j])
+        try
+            k = max(i, j)
+            labels[i] = k
+            labels[j] = k
+        finally
+            unlock(locks[i])
+            unlock(locks[j])
+        end
+        return nothing
+    elseif labels[i] == 0
+        labels[i] = j
+    elseif labels[j] == 0
+        labels[j] = i
+    end
+
+    while labels[i] != labels[j]
+        if labels[i] < labels[j]
+            if labels[i] == i
+                lock(locks[i])
+                try
+                    labels[i] = labels[j]
+                finally
+                    unlock(locks[i])
                 end
-            finally
-                unlock(locks[i])
-                unlock(locks[j])
             end
+            i = labels[i]
+        else
+            if labels[j] == j
+                lock(locks[j])
+                try
+                    labels[j] = labels[i]
+                finally
+                    unlock(locks[j])
+                end
+            end
+            j = labels[j]
         end
     end
+end
+
+function collect_labels(labels::Vector{I}) where I
+    clusters = Dict{I, Vector{Int}}()
+    for (i, l) in eachindex(labels)
+        if haskey(clusters, l)
+            push!(clusters[l], i)
+        else
+            clusters[l] = [i]
+        end
+    end
+    return values(clusters) # cluster labels not important past this
 end
 
 end
