@@ -1,7 +1,7 @@
 name = "dbscan"
 uuid = "3096924e-154f-4f74-b9f4-9a632374c66c"
 authors = ["Samuel Cornwall"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"

@@ -158,7 +158,9 @@ end
 function collect_labels(labels::Vector{I}) where I
     clusters = Dict{I, Vector{Int}}()
     for (i, l) in eachindex(labels)
-        if haskey(clusters, l)
+        if l == 0
+            continue
+        elseif haskey(clusters, l)
             push!(clusters[l], i)
         else
             clusters[l] = [i]
