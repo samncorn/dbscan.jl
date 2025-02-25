@@ -157,7 +157,7 @@ end
 
 function collect_labels(labels::Vector{I}) where I
     clusters = Dict{I, Vector{Int}}()
-    for (i, l) in eachindex(labels)
+    for (i, l) in pairs(labels)
         if l == 0
             continue
         elseif haskey(clusters, l)
