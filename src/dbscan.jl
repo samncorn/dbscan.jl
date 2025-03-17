@@ -2,8 +2,8 @@ module dbscan
 
 using NearestNeighbors
 
-function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1)
-    tree = KDTree(points; leafsize = leafsize, reorder = reorder)
+function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1, metric = Euclidean())
+    tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
 
     N = length(points)
     labels = zeros(Int, N)
