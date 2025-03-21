@@ -24,7 +24,8 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
     end
     promote_labels!(labels)
     # collect labels into clusters
-    return collect_labels(labels)
+    # return collect_labels(labels)
+    return labels, collect_labels(labels)
 end
 
 function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
