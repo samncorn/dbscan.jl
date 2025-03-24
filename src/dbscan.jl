@@ -45,7 +45,7 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
         for j in neighborhood
             if in(j, points_idx)
                 join_labels!(labels, i, j)
-            else
+            elseif i < j
                 push!(mergers, (i, j))
             end
         end
