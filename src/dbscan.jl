@@ -70,7 +70,6 @@ function find_root(i, labels)
     j = i
     while j != labels[j]
         j = labels[j]
-        j == j 
     end
     return j
 end
