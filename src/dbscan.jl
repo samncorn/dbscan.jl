@@ -40,7 +40,7 @@ function _dbscan_kernel!(labels, tree, points, in_chunk, r, min_pts, max_pts)
         empty!(neighborhood)
         inrange!(neighborhood, tree, p_i, r)
         length(neighborhood) <= min_pts && continue # need equality because the point will also be counted
-        length(neighborhood) > max_pts && throw("dbscan exceeded maximum number of points in a neighborhood")
+        length(neighborhood) > max_pts && throw(DomainError("dbscan exceeded maximum number of points in a neighborhood"))
 
         if labels[i] == 0 # unvisited, flag as core point
             labels[i] = i
