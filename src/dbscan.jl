@@ -14,10 +14,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
 
     Threads.@threads for i_chunk in 1:n_chunks
         idxs = i_chunk:n_chunks:length(points)
-        # in_chunk = x -> x ∈ idxs
-        for i in idxs
-            mergers[i_chunk] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
-        end
+        mergers[i_chunk] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
     end 
     for m in mergers
         locks = [ReentrantLock() for _ in labels]
