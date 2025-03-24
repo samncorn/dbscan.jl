@@ -1,6 +1,7 @@
 module dbscan
 
 using NearestNeighbors
+using Logging
 
 function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1, metric = Euclidean(), max_pts = Inf)
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
@@ -11,19 +12,29 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
     mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_chunks)
     # chunksize = ceil(Int, N / n_chunks)
     # chunks = collect(Iterators.partition(eachindex(points), chunksize))
-
-    Threads.@threads for i_chunk in 1:n_chunks
-        idxs = i_chunk:n_chunks:length(points)
-        mergers[i_chunk] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
+    @debug "performing range searches"
+    Threads.@threads for i_thread in 1:n_chunks
+        @debug "starting thread $(i_thread)"
+        idxs = i_thread:n_chunks:length(points)
+        mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
+        @debug "thread $(i_thread) completed"
     end 
-    for m in mergers
-        locks = [ReentrantLock() for _ in labels]
+
+    locks = [ReentrantLock() for _ in labels]
+    for (m_i, m) in enumerate(mergers)
         Threads.@threads for (i, j) in m
             join_labels_locking!(labels, locks, i, j, min_pts)
         end
+        @debug "merged $(m_i) edge clusters"
     end
+
+    # return labels
+
+    @debug "updating labels to cluster roots"
     promote_labels!(labels)
     # collect labels into clusters
+
+    @debug "DBSCAN completed"
     return collect_labels(labels)
 end
 
@@ -55,9 +66,11 @@ end
 
 """
 loop through labels, changing the label to match the root label
+
+not currently multihteraded, but could be using some locks
 """ 
 function promote_labels!(labels)
-    Threads.@threads for i in eachindex(labels)
+    for i in eachindex(labels)
         # find cluster root
         if labels[i] != 0 
             j = find_root(i, labels)
@@ -68,8 +81,13 @@ end
 
 function find_root(i, labels)
     j = i
+    n = 0
+    max_n = length(labels)
     while j != labels[j]
         j = labels[j]
+        n += 1
+        j == 0 && throw("ERROR: noise point root of cluster")
+        n > max_n && throw("ERROR: probably stuck in a loop")
     end
     return j
 end
@@ -110,22 +128,30 @@ function join_labels_locking!(labels, locks, ii, jj, min_pts)
     i = ii
     j = jj
 
-    if labels[i] == 0 && labels[j] == 0 && min_pts <= 2
-        lock(locks[i])
-        lock(locks[j])
-        try
-            k = max(i, j)
-            labels[i] = k
-            labels[j] = k
-        finally
-            unlock(locks[i])
-            unlock(locks[j])
-        end
-        return nothing
-    elseif labels[i] == 0
-        labels[i] = j
-    elseif labels[j] == 0
-        labels[j] = i
+    # if labels[i] == 0 && labels[j] == 0 && min_pts <= 2
+    #     lock(locks[i])
+    #     lock(locks[j])
+    #     try
+    #         k = max(i, j)
+    #         labels[i] = k
+    #         labels[j] = k
+    #     finally
+    #         unlock(locks[i])
+    #         unlock(locks[j])
+    #     end
+    #     return nothing
+    # elseif labels[i] == 0
+    #     labels[i] = j
+    # elseif labels[j] == 0
+    #     labels[j] = i
+    # end
+
+    if labels[i] == 0
+        labels[i] = i
+    end
+
+    if labels[j] == 0
+        labels[j] = j
     end
 
     while labels[i] != labels[j]

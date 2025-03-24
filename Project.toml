@@ -4,10 +4,14 @@ authors = ["Samuel Cornwall"]
 version = "0.3.2"
 
 [deps]
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+LoggingExtras = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
+Logging = "1.11.0"
+LoggingExtras = "1.1.0"
 NearestNeighbors = "0.4.21"
 StaticArrays = "1.9.12"
 julia = "1"
