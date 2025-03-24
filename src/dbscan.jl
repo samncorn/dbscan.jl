@@ -2,7 +2,7 @@ module dbscan
 
 using NearestNeighbors
 
-function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1, metric = Euclidean())
+function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1, metric = Euclidean(), max_pts = Inf)
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
 
     N = length(points)
@@ -14,7 +14,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
 
     Threads.@threads for i in 1:n_chunks
         points_idx = chunks[i]
-        mergers[i] = _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, Inf)
+        mergers[i] = _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
     end 
     for m in mergers
         locks = [ReentrantLock() for _ in labels]
