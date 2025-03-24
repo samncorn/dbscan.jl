@@ -16,7 +16,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
         idxs = i_chunk:n_chunks:length(points)
         # in_chunk = x -> x ∈ idxs
         for i in idxs
-            mergers[i] = _dbscan_kernel!(labels, tree, idxs, r, min_pts, max_pts)
+            mergers[i] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
         end
     end 
     for m in mergers
@@ -30,7 +30,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
     return collect_labels(labels)
 end
 
-function _dbscan_kernel!(labels, tree, points_idx, r, min_pts, max_pts)
+function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
     mergers = Tuple{Int, Int}[] # save edges that cross a chunk boundary for post processing
     neighborhood = Int[]
     for i in points_idx
