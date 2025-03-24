@@ -16,7 +16,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1,
         idxs = i_chunk:n_chunks:length(points)
         # in_chunk = x -> x ∈ idxs
         for i in idxs
-            mergers[i] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
+            mergers[i_chunk] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
         end
     end 
     for m in mergers
