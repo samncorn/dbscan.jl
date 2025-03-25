@@ -53,9 +53,22 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
             labels[i] = i
         end
 
+        ci = find_root(labels, i)
         for j in neighborhood
             if in(j, points_idx)
-                join_labels!(labels, i, j)
+                # join_labels!(labels, i, j)
+                if j == 0
+                    labels[j] == ci
+                else
+                    cj = find_root(labels, j)
+                    if ci > cj
+                        labels[cj] = ci
+                        labels[j]  = ci
+                    elseif ci < cj
+                        labels[ci] = cj
+                        labels[i]  = cj 
+                    end
+                end
             else
                 push!(mergers, (i, j))
             end
