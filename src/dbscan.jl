@@ -57,7 +57,7 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
         for j in neighborhood
             if in(j, points_idx)
                 # join_labels!(labels, i, j)
-                if j == 0
+                if labels[j] == 0
                     labels[j] == ci
                 else
                     cj = find_root(j, labels)
