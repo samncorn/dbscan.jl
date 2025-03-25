@@ -56,7 +56,7 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
         for j in neighborhood
             if in(j, points_idx)
                 join_labels!(labels, i, j)
-            elseif i < j
+            else
                 push!(mergers, (i, j))
             end
         end
@@ -148,18 +148,14 @@ function join_labels_locking!(labels, locks, ii, jj, min_pts)
         if labels[i] < labels[j]
             if labels[i] == i
                 lock(locks[i]) do 
-                    lock(locks[j]) do
-                        labels[i] = labels[j]
-                    end
+                    labels[i] = labels[j]
                 end
             end
             i = labels[i]
         else
             if labels[j] == j
                 lock(locks[j]) do
-                    lock(locks[i]) do
-                        labels[j] = labels[i]
-                    end
+                    labels[j] = labels[i]
                 end
             end
             j = labels[j]
