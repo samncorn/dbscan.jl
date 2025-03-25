@@ -23,7 +23,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
     locks = [ReentrantLock() for _ in labels]
     for (m_i, m) in enumerate(mergers)
         Threads.@threads for (i, j) in m
-            join_labels_locking!(labels, locks, i, j, min_pts)
+            join_labels_locking!(labels, locks, i, j)
         end
         @debug "merged $(m_i) edge clusters"
     end
@@ -103,44 +103,45 @@ Springer, LNCS 6049, 2010, pp. 411–423.
 function join_labels!(labels, ii, jj)
     i = ii
     j = jj
+    # splicing to flatten the tree
     while labels[i] != labels[j]
         if labels[i] < labels[j]
             if labels[i] == i
                 labels[i] = labels[j]
-                continue
+            else
+                k = labels[i]
+                labels[i] = labels[j]
+                i = k
             end
-            k = i 
-            labels[i] = labels[j]
-            i = labels[k]
         else
             if labels[j] == j
                 labels[j] = labels[i]
-                continue
+            else
+                k = labels[j]
+                labels[k] = labels[i]
+                j = k
             end
-            k = j
-            labels[k] = labels[i]
-            j = labels[k]
         end
     end
+    # update the original points
+    l = max(labels[i], labels[j])
+    labels[ii] = l
+    labels[jj] = l
 end
 
-function join_labels_locking!(labels, locks, ii, jj, min_pts)
+function join_labels_locking!(labels, locks, ii, jj)
     i = ii
     j = jj
 
     if labels[i] == 0
         lock(locks[i]) do
-            lock(locks[j]) do
-                labels[i] = labels[j]
-            end
+            labels[i] = labels[j]
         end
     end
 
     if labels[j] == 0
         lock(locks[j]) do
-            lock(locks[i]) do
-                labels[j] = labels[i]
-            end
+            labels[j] = labels[i]
         end
     end
 
@@ -160,6 +161,13 @@ function join_labels_locking!(labels, locks, ii, jj, min_pts)
             end
             j = labels[j]
         end
+    end
+    l = max(labels[i], labels[j])
+    lock(locks[ii]) do
+        labels[ii] = l
+    end
+    lock(locks[jj]) do
+        labels[jj] = l
     end
 end
 
