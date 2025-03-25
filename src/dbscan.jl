@@ -10,12 +10,12 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
     labels = zeros(Int, N)
 
     mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_threads)
-    # chunksize = ceil(Int, N / n_threads)
-    # chunks = collect(Iterators.partition(eachindex(points), chunksize))
+    chunksize = ceil(Int, N / n_threads)
+    chunks = collect(Iterators.partition(eachindex(points), chunksize))
     @debug "performing range searches"
     Threads.@threads for i_thread in 1:n_threads
         @debug "starting thread $(i_thread)"
-        idxs = i_thread:n_threads:N
+        idxs = chunks[i_thread]
         mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
         @debug "thread $(i_thread) completed"
     end 
@@ -128,50 +128,38 @@ function join_labels_locking!(labels, locks, ii, jj, min_pts)
     i = ii
     j = jj
 
-    # if labels[i] == 0 && labels[j] == 0 && min_pts <= 2
-    #     lock(locks[i])
-    #     lock(locks[j])
-    #     try
-    #         k = max(i, j)
-    #         labels[i] = k
-    #         labels[j] = k
-    #     finally
-    #         unlock(locks[i])
-    #         unlock(locks[j])
-    #     end
-    #     return nothing
-    # elseif labels[i] == 0
-    #     labels[i] = j
-    # elseif labels[j] == 0
-    #     labels[j] = i
-    # end
-
     if labels[i] == 0
-        labels[i] = j
+        lock(locks[i]) do
+            lock(locks[j]) do
+                labels[i] = labels[j]
+            end
+        end
     end
 
     if labels[j] == 0
-        labels[j] = i
+        lock(locks[j]) do
+            lock(locks[i]) do
+                labels[j] = labels[i]
+            end
+        end
     end
 
     while labels[i] != labels[j]
         if labels[i] < labels[j]
             if labels[i] == i
-                lock(locks[i])
-                try
-                    labels[i] = labels[j]
-                finally
-                    unlock(locks[i])
+                lock(locks[i]) do 
+                    lock(locks[j]) do
+                        labels[i] = labels[j]
+                    end
                 end
             end
             i = labels[i]
         else
             if labels[j] == j
-                lock(locks[j])
-                try
-                    labels[j] = labels[i]
-                finally
-                    unlock(locks[j])
+                lock(locks[j]) do
+                    lock(locks[i]) do
+                        labels[j] = labels[i]
+                    end
                 end
             end
             j = labels[j]
