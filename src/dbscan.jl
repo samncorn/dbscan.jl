@@ -3,19 +3,19 @@ module dbscan
 using NearestNeighbors
 using Logging
 
-function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_chunks = 1, metric = Euclidean(), max_pts = Inf)
+function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
 
     N = length(points)
     labels = zeros(Int, N)
 
-    mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_chunks)
-    # chunksize = ceil(Int, N / n_chunks)
+    mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_threads)
+    # chunksize = ceil(Int, N / n_threads)
     # chunks = collect(Iterators.partition(eachindex(points), chunksize))
     @debug "performing range searches"
-    Threads.@threads for i_thread in 1:n_chunks
+    Threads.@threads for i_thread in 1:n_threads
         @debug "starting thread $(i_thread)"
-        idxs = i_thread:n_chunks:length(points)
+        idxs = i_thread:n_threads:N
         mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
         @debug "thread $(i_thread) completed"
     end 
