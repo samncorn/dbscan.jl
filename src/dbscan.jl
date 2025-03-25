@@ -147,11 +147,11 @@ function join_labels_locking!(labels, locks, ii, jj, min_pts)
     # end
 
     if labels[i] == 0
-        labels[i] = i
+        labels[i] = j
     end
 
     if labels[j] == 0
-        labels[j] = j
+        labels[j] = i
     end
 
     while labels[i] != labels[j]
