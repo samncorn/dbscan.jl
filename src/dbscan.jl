@@ -9,6 +9,9 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
     N = length(points)
     labels = zeros(Int, N)
 
+    # no point in chunking, override
+    n_threads = N > 100 ? n_threads : 1 
+
     mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_threads)
     chunksize = ceil(Int, N / n_threads)
     chunks = collect(Iterators.partition(eachindex(points), chunksize))
