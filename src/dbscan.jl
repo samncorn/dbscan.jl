@@ -156,7 +156,7 @@ function join_labels!(labels, ii, jj)
                 labels[j] = labels[i]
             else
                 k = labels[j]
-                labels[k] = labels[i]
+                labels[j] = labels[i]
                 j = k
             end
         end
