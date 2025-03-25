@@ -2,9 +2,13 @@ module dbscan
 
 using NearestNeighbors
 using Logging
+using Dates
 
 function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
+    t0 = now()
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
+    tf = now()
+    @debug("$(canonicalize(tf - t0)) to build kdtree")
 
     N = length(points)
     labels = zeros(Int, N)
@@ -18,23 +22,32 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
     @debug "performing range searches"
     Threads.@threads for i_thread in 1:n_threads
         @debug "starting thread $(i_thread)"
+        t0 = now()
         idxs = chunks[i_thread]
         mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
-        @debug "thread $(i_thread) completed"
+        tf = now()
+        @debug("$(canonicalize(tf - t0)) to process thread $(i_thread)")
     end 
 
     locks = [ReentrantLock() for _ in labels]
     for (m_i, m) in enumerate(mergers)
-        Threads.@threads for (i, j) in m
-            join_labels_locking!(labels, locks, i, j)
+        # Threads.@threads for (i, j) in m
+        t0 = now()
+        Threads.@threads for i_thread in 1:n_threads
+            for k in i_thread:n_threads:length(m)
+                (i, j) = m[k]
+                join_labels_locking!(labels, locks, i, j)
+            end
         end
-        @debug "merged $(m_i) edge clusters"
+        tf = now()
+        @debug("$(canonicalize(tf - t0)) to merge clusters $(m_i)")
     end
 
-    # return labels
-
     @debug "updating labels to cluster roots"
+    t0 = now()
     promote_labels!(labels)
+    tf = now()
+    @debug("$(canonicalize(tf - t0)) to update labels")
     # collect labels into clusters
 
     @debug "DBSCAN completed"
@@ -49,8 +62,8 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
 
         empty!(neighborhood)
         inrange!(neighborhood, tree, p_i, r)
-        length(neighborhood) <= min_pts && continue # need equality because the point will also be counted
-        length(neighborhood) > max_pts && throw(DomainError("dbscan exceeded maximum number of points in a neighborhood"))
+        (length(neighborhood) <= min_pts || length(neighborhood) > max_pts) && continue # need equality because the point will also be counted
+        # length(neighborhood) > max_pts && throw(DomainError("dbscan exceeded maximum number of points in a neighborhood"))
 
         if labels[i] == 0 # unvisited, flag as core point
             labels[i] = i
