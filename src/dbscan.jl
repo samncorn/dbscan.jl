@@ -58,6 +58,7 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
 
         # ci = find_root(i, labels)
         for j in neighborhood
+            i == j && continue
             if in(j, points_idx)
                 join_labels!(labels, i, j)
                 # if labels[j] == 0
@@ -82,11 +83,10 @@ end
 
 """
 loop through labels, changing the label to match the root label
-
-not currently multihteraded, but could be using some locks
+should add splicing w/ some locks
 """ 
 function promote_labels!(labels)
-    for i in eachindex(labels)
+    Threads.@threads for i in eachindex(labels)
         # find cluster root
         if labels[i] != 0 
             j = find_root(i, labels)
@@ -149,7 +149,7 @@ function join_labels!(labels, ii, jj)
         end
     end
     # update the original points
-    l = max(labels[i], labels[j])
+    l = labels[i]
     labels[ii] = l
     labels[jj] = l
 end
@@ -187,7 +187,7 @@ function join_labels_locking!(labels, locks, ii, jj)
             j = labels[j]
         end
     end
-    l = max(labels[i], labels[j])
+    l = labels[i]
     lock(locks[ii]) do
         labels[ii] = l
     end
