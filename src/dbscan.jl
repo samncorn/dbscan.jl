@@ -59,19 +59,19 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
         ci = find_root(i, labels)
         for j in neighborhood
             if in(j, points_idx)
-                # join_labels!(labels, i, j)
-                if labels[j] == 0
-                    labels[j] == ci
-                else
-                    cj = find_root(j, labels)
-                    if ci > cj
-                        labels[cj] = ci
-                        labels[j]  = ci
-                    elseif ci < cj
-                        labels[ci] = cj
-                        labels[i]  = cj 
-                    end
-                end
+                join_labels!(labels, i, j)
+                # if labels[j] == 0
+                #     labels[j] == ci
+                # else
+                #     cj = find_root(j, labels)
+                #     if ci > cj
+                #         labels[cj] = ci
+                #         labels[j]  = ci
+                #     elseif ci < cj
+                #         labels[ci] = cj
+                #         labels[i]  = cj 
+                #     end
+                # end
             else
                 push!(mergers, (i, j))
             end
@@ -117,6 +117,15 @@ gorithms for the disjoint-set data structure,” in Proceedings of the
 Springer, LNCS 6049, 2010, pp. 411–423.
 """
 function join_labels!(labels, ii, jj)
+
+    if labels[jj] == 0
+        labels[jj] = jj
+    end
+
+    if labels[ii] == 0
+        labels[ii] = ii
+    end
+
     i = ii
     j = jj
     # splicing to flatten the tree
