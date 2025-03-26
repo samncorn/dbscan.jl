@@ -130,18 +130,20 @@ gorithms for the disjoint-set data structure,” in Proceedings of the
 Springer, LNCS 6049, 2010, pp. 411–423.
 """
 function join_labels!(labels, ii, jj)
-
-    if labels[jj] == 0
+    # handle noise points
+    if labels[ii] == labels[jj] == 0
+        l = max(ii, jj)
+        labels[ii] = l
+        labels[jj] = l
+    elseif labels[jj] == 0
         labels[jj] = jj
-    end
-
-    if labels[ii] == 0
+    elseif labels[ii] == 0
         labels[ii] = ii
     end
 
+    # splicing to flatten the tree
     i = ii
     j = jj
-    # splicing to flatten the tree
     while labels[i] != labels[j]
         if labels[i] < labels[j]
             if labels[i] == i
@@ -170,31 +172,48 @@ end
 function join_labels_locking!(labels, locks, ii, jj)
     i = ii
     j = jj
-
-    if labels[i] == 0
+    # check for noise points
+    if labels[i] == labels[j] == 0
+        lock(locks[i]) do 
+            lock(locks[j]) do
+                if labels[i] == labels[j] == 0 
+                    l = max(i, j)
+                    labels[i] == l
+                    labels[j] == l
+                end
+            end
+        end
+    elseif labels[i] == 0
         lock(locks[i]) do
-            labels[i] = labels[j]
+            if labels[i] == 0
+                labels[i] = labels[j]
+            end
         end
-    end
-
-    if labels[j] == 0
+    elseif labels[j] == 0
         lock(locks[j]) do
-            labels[j] = labels[i]
+            if labels[j] == 0
+                labels[j] = labels[i]
+            end
         end
     end
 
+    # splicing
     while labels[i] != labels[j]
         if labels[i] < labels[j]
             if labels[i] == i
                 lock(locks[i]) do 
-                    labels[i] = labels[j]
+                    if labels[i] == i # double check in case it's been changed
+                        labels[i] = labels[j]
+                    end
                 end
             end
             i = labels[i]
         else
             if labels[j] == j
                 lock(locks[j]) do
-                    labels[j] = labels[i]
+                    if labels[j] == j  # double check in case it's been changed
+                        labels[j] = labels[i]
+                    end
                 end
             end
             j = labels[j]
