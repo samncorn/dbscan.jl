@@ -31,13 +31,16 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
 
     locks = [ReentrantLock() for _ in labels]
     for (m_i, m) in enumerate(mergers)
-        # Threads.@threads for (i, j) in m
         t0 = now()
-        Threads.@threads for i_thread in 1:n_threads
-            for k in i_thread:n_threads:length(m)
-                (i, j) = m[k]
-                join_labels_locking!(labels, locks, i, j)
-            end
+        # Threads.@threads for i_thread in 1:n_threads
+        #     for k in i_thread:n_threads:length(m)
+        #         (i, j) = m[k]
+        #         join_labels_locking!(labels, locks, i, j)
+        #     end
+        # end
+        # non parallel version
+        for (i, j) in m
+            join_labels!(labels, i, j)
         end
         tf = now()
         @debug("$(canonicalize(tf - t0)) to merge clusters $(m_i)")
