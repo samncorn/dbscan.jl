@@ -24,7 +24,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
         @debug "starting thread $(i_thread)"
         t0 = now()
         idxs = chunks[i_thread]
-        mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts)
+        mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts; reordered = reorder)
         tf = now()
         @debug("$(canonicalize(tf - t0)) to process thread $(i_thread)")
     end 
@@ -57,7 +57,9 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
     return collect_labels(labels)
 end
 
-function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
+function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts; reordered = false)
+    # if reordered, do the operations on the trees internal ordering, for better locality
+    # still have to map out the 
     mergers = Tuple{Int, Int}[] # save edges that cross a chunk boundary for post processing
     neighborhood = Int[]
     for i in points_idx
@@ -95,6 +97,33 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts)
         end
     end
     return mergers
+end
+
+
+# """ New and improved dbscan
+
+# the partition arg sends point to user chunks.
+# """
+# function DBSCAN2(points, r, min_pts; n_threads = 1, metric = Euclidean(), max_pts = Inf)
+
+# end
+
+""" neighborhood must return an iterable of tuples of (point, bool), where the bool indicates whether the point requires follow up
+to resolve a boundary crossing. The neighborhood return iterable must also have a length method defined on it
+"""
+function _dbscan_kernel_2!(labels, mergers, points, neighborhood, r, min_pts, max_pts)
+    @assert length(labels) == length(points)
+    for (i, p_i) in enumerate(points)
+        neighbors = neighborhood(p_i, r)
+        (length(neighbors) <= min_pts || length(neighbors) > max_pts) && continue # need equality because the point will also be counted
+        for (j, in_chunk) in neighbors
+            if in_chunk
+                join_labels!(labels, i, j)
+            else
+                push!(mergers, (i, j))
+            end
+        end
+    end
 end
 
 """
