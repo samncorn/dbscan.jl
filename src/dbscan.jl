@@ -1,5 +1,6 @@
 module dbscan
 
+using StaticArrays
 using NearestNeighbors
 using Logging
 using Dates
