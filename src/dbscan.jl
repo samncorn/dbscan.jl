@@ -4,7 +4,102 @@ using NearestNeighbors
 using Logging
 using Dates
 
-function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
+""" multithreaded fixed sized cell implementation
+
+bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
+the surrounding cells (if they exist, only cells with points are instantiated).
+"""
+function DBSCAN_cells(points, radius, min_pts; n_threads = 1)
+    cells = Dict{SVector{3, Int32}, Vector{Int}}()
+    center = mean(points)
+
+    # assign points to cells
+    for (i, p) in pairs(points)
+        cell = SVector{3, Int32}(find_cell(SVector{3}(view(p - center, 1:3)), radius))
+        if haskey(cells, cell)
+            push!(cells[cell], i)
+        else
+            cells[cell] = [i]
+        end
+    end
+
+    _neighbor_cells = map(x -> SVector{3}(x), Iterators.product([(0, 1) for i in 1:3]...))
+    # query cells
+    labels = zeros(UInt32, length(points))
+    chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
+    merges = [Tuple{Int, Int}[] for _ in chunks]
+
+    cell_chunk = Dict{SVector{3, Int32}, Int}()
+    for (i, chunk) in enumerate(chunks)
+        for cell in chunk
+            cell_chunk[cell] = i
+        end
+    end
+
+    progress = Progress(length(cells))
+    Threads.@threads for i_c in 1:length(chunks)
+        chunk = chunks[i_c]
+        merge = merges[i_c]
+
+        for celli in chunk
+            for i in cells[celli]
+                n_core = 0
+                for _n in _neighbor_cells
+                    cellj = celli + _n
+
+                    if !haskey(cells, cellj)
+                        continue
+                    end
+
+                    for j in cells[cellj]
+                        p_i = points[i]
+                        p_j = points[j]
+                        if dot(p_i - p_j, p_i - p_j) < radius^2
+                            n_core += 1
+                        end
+                    end
+                end
+                
+                if n_core >= min_pts # is core point
+                    for _n in _neighbor_cells
+                        cellj = celli + _n
+
+                        if !haskey(cells, cellj)
+                            continue
+                        end
+
+                        if cell_chunk[cellj] == i_c
+                            for j in cells[cellj]
+                                p_i = points[i]
+                                p_j = points[j]
+                                if dot(p_i - p_j, p_i - p_j) < radius^2
+                                    join_labels!(labels, i, j)
+                                end
+                            end
+                        else
+                            for j in cells[cellj]
+                                p_i = points[i]
+                                p_j = points[j]
+                                if dot(p_i - p_j, p_i - p_j) < radius^2
+                                    push!(merge, (i, j))
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            next!(progress)
+        end
+    end
+
+    for (i, j) in Iterators.flatten(merges)
+        join_labels!(labels, i, j)
+    end
+
+    return labels
+end
+
+function DBSCAN_tree(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
     t0 = now()
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
     tf = now()
@@ -29,7 +124,7 @@ function DBSCAN(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1
         @debug("$(canonicalize(tf - t0)) to process thread $(i_thread)")
     end 
 
-    locks = [ReentrantLock() for _ in labels]
+    # locks = [ReentrantLock() for _ in labels]
     for (m_i, m) in enumerate(mergers)
         t0 = now()
         # Threads.@threads for i_thread in 1:n_threads
@@ -99,6 +194,24 @@ function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts; 
     return mergers
 end
 
+# """
+# labels
+#     total point -> cluster label array
+# mergers
+#     records whether to check points in the clean up sweep
+# range_query
+#     queries the region around a point
+# chunk
+#     points to run clustering on
+# chunk map
+#     takes a points label, return whether it is in the chunk
+
+# """
+# function _dbscan_kernel_2!(labels, mergers, range_query, chunk, chunk_map, r, min_pts, max_pts)
+#     neighborhood = Int[]
+
+# end
+
 
 # """ New and improved dbscan
 
@@ -108,23 +221,22 @@ end
 
 # end
 
-""" neighborhood must return an iterable of tuples of (point, bool), where the bool indicates whether the point requires follow up
-to resolve a boundary crossing. The neighborhood return iterable must also have a length method defined on it
-"""
-function _dbscan_kernel_2!(labels, mergers, points, neighborhood, r, min_pts, max_pts)
-    @assert length(labels) == length(points)
-    for (i, p_i) in enumerate(points)
-        neighbors = neighborhood(p_i, r)
-        (length(neighbors) <= min_pts || length(neighbors) > max_pts) && continue # need equality because the point will also be counted
-        for (j, in_chunk) in neighbors
-            if in_chunk
-                join_labels!(labels, i, j)
-            else
-                push!(mergers, (i, j))
-            end
-        end
-    end
-end
+# """ neighborhood must return an iterable of tuples of (point, bool), where the bool indicates whether the point requires follow up
+# to resolve a boundary crossing. The neighborhood return iterable must also have a length method defined on it
+# """
+# function _dbscan_kernel_2!(labels, mergers, points, neighborhood, r, min_pts, max_pts)
+#     for (i, p_i) in enumerate(points)
+#         neighbors = neighborhood(p_i, r)
+#         (length(neighbors) <= min_pts || length(neighbors) > max_pts) && continue # need equality because the point will also be counted
+#         for (j, in_chunk) in neighbors
+#             if in_chunk
+#                 join_labels!(labels, i, j)
+#             else
+#                 push!(mergers, (i, j))
+#             end
+#         end
+#     end
+# end
 
 """
 loop through labels, changing the label to match the root label
