@@ -14,13 +14,13 @@ dot(x, y) = sum(x .* y)
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points, radius, min_pts; n_threads = 1)
-    cells = Dict{SVector{3, Int32}, Vector{Int}}()
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1) where {D, T}
+    cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
     # assign points to cells
     for (i, p) in pairs(points)
-        cell = SVector{3, Int32}(find_cell(SVector{3}(view(p - center, 1:3)), radius))
+        cell = SVector{D, Int32}(find_cell(p - center, radius))
         if haskey(cells, cell)
             push!(cells[cell], i)
         else
@@ -28,20 +28,19 @@ function DBSCAN_cells(points, radius, min_pts; n_threads = 1)
         end
     end
 
-    _neighbor_cells = map(x -> SVector{3}(x), Iterators.product([(0, 1) for i in 1:3]...))
+    _neighbor_cells = map(x -> SVector{D}(x), Iterators.product([(0, 1) for i in 1:D]...))
     # query cells
     labels = zeros(UInt32, length(points))
     chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
     merges = [Tuple{Int, Int}[] for _ in chunks]
 
-    cell_chunk = Dict{SVector{3, Int32}, Int}()
+    cell_chunk = Dict{SVector{D, Int32}, Int}()
     for (i, chunk) in enumerate(chunks)
         for cell in chunk
             cell_chunk[cell] = i
         end
     end
 
-    progress = Progress(length(cells))
     Threads.@threads for i_c in 1:length(chunks)
         chunk = chunks[i_c]
         merge = merges[i_c]
@@ -93,13 +92,14 @@ function DBSCAN_cells(points, radius, min_pts; n_threads = 1)
                     end
                 end
             end
-            next!(progress)
         end
     end
 
     for (i, j) in Iterators.flatten(merges)
         join_labels!(labels, i, j)
     end
+
+    promote_labels!(labels)
 
     return labels
 end
