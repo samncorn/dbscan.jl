@@ -104,6 +104,15 @@ function DBSCAN_cells(points, radius, min_pts; n_threads = 1)
     return labels
 end
 
+function find_cell(point::SVector{D, T}, radius::T) where {D, T}
+    cell = @MVector zeros(Int, D)
+    for d in eachindex(point)
+        cell[d] = sign(point[d]) * floor(Int, abs(point[d] / radius)) 
+    end
+    return SVector{D}(cell)
+    # return join(cell, ',')
+end
+
 function DBSCAN_tree(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
     t0 = now()
     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
