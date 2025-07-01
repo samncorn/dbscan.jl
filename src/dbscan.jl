@@ -6,6 +6,9 @@ using NearestNeighbors
 using Logging
 using Dates
 
+# convenience function so that we don't need linear algebra as a deopendecy
+dot(x, y) = sum(x .* y)
+
 """ multithreaded fixed sized cell implementation
 
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
