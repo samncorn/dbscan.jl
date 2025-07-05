@@ -6,6 +6,7 @@ using NearestNeighbors
 using Logging
 using Dates
 using Logging
+using Printf
 
 # convenience function so that we don't need linear algebra as a deopendecy
 dot(x, y) = sum(x .* y)
