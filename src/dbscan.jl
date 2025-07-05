@@ -5,6 +5,7 @@ using StatsBase
 using NearestNeighbors
 using Logging
 using Dates
+using Logging
 
 # convenience function so that we don't need linear algebra as a deopendecy
 dot(x, y) = sum(x .* y)
@@ -94,6 +95,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             end
         end
     end
+    @info @sprintf "merge list size %.3e Bytes" sizeof(merges)
 
     for (i, j) in Iterators.flatten(merges)
         join_labels!(labels, i, j)
