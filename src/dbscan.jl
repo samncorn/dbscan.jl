@@ -104,7 +104,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     return labels
 end
 
-function find_cell(point::SVector{D, T}, radius::T) where {D, T}
+function find_cell(point::SVector{D, T}, radius) where {D, T}
     cell = @MVector zeros(Int, D)
     for d in eachindex(point)
         cell[d] = sign(point[d]) * floor(Int, abs(point[d] / radius)) 
