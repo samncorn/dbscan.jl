@@ -397,7 +397,7 @@ function collect_labels(labels::Vector{I}) where I
             clusters[l] = [i]
         end
     end
-    return values(clusters) # cluster labels not important past this
+    return collect(values(clusters)) # cluster labels not important past this
 end
 
 end
