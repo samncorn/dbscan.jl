@@ -128,7 +128,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     end
 
     empty!.(merges)
-    empty!(mergers)
+    empty!(merges)
 
     promote_labels!(labels)
 
