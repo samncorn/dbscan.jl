@@ -50,7 +50,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             chunks[chunk] = [cell]
         end
     end
-    @info @sprintf "divided cells into %i chunks" lengt(chunks)
+    @info @sprintf "divided cells into %i chunks" length(chunks)
 
     merges = [Tuple{Int, Int}[] for _ in chunks]
 
