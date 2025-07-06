@@ -52,7 +52,11 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     for cell in keys(cells)
         # with chunk side length, compute a broader key 
         chunk = find_cell(cell, chunk_width)
-        push!(chunks[chunk], cell)
+        if haskey(chunks, chunk)
+            push!(chunks[chunk], cell)
+        else
+            chunks[chunk] = [cell]
+        end
     end
 
     chunk_keys = keys(chunks)
