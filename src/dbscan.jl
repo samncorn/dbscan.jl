@@ -30,7 +30,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
         end
     end
 
-    _neighbor_cells = map(x -> SVector{D}(x), Iterators.product([(0, 1) for i in 1:D]...))
+    _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
     # query cells
     labels = zeros(UInt32, length(points))
     chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
@@ -46,9 +46,17 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     Threads.@threads for i_c in 1:length(chunks)
         chunk = chunks[i_c]
         merge = merges[i_c]
+        # # 
+        # for celli in chunk
+        #     for i in cells[celli]
+        #         kernels_cells!(labels, merge, p_i, cells, radius)
+        #     end
+        # end
+        # #
 
         for celli in chunk
             for i in cells[celli]
+                p_i = points[i]
                 n_core = 0
                 for _n in _neighbor_cells
                     cellj = celli + _n
@@ -58,7 +66,6 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                     end
 
                     for j in cells[cellj]
-                        p_i = points[i]
                         p_j = points[j]
                         if dot(p_i - p_j, p_i - p_j) < radius^2
                             n_core += 1
@@ -76,20 +83,19 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
                         if cell_chunk[cellj] == i_c
                             for j in cells[cellj]
-                                p_i = points[i]
                                 p_j = points[j]
                                 if dot(p_i - p_j, p_i - p_j) < radius^2
                                     join_labels!(labels, i, j)
                                 end
                             end
                         else
-                            for j in cells[cellj]
-                                p_i = points[i]
-                                p_j = points[j]
-                                if dot(p_i - p_j, p_i - p_j) < radius^2
-                                    push!(merge, (i, j))
-                                end
-                            end
+                            # for j in cells[cellj]
+                            #     p_j = points[j]
+                            #     if dot(p_i - p_j, p_i - p_j) < radius^2
+                            #         push!(merge, (i, j))
+                            #     end
+                            # end
+                            continue
                         end
                     end
                 end
@@ -106,6 +112,22 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     return labels
 end
+
+function count_neighbors(p::SVector{D, T}, radius, cells) where {D, T}
+    cell = find_cell(p, radius)
+    # for i in 2^length(p)
+    #     n = zero(MVector{D, Int})
+    #     for j in 1:length(p)
+
+    #     end
+    # end
+    for _neighbor in Iterators.product(((0, 1) for _ in 1:d)...)
+        cellj = SVector{D, Int}(_neighbor) + cell
+end
+
+# function kernel_cells!(labels, merge, p::SVector{D, T}, cells, radius) where {T}
+
+# end
 
 function find_cell(point::SVector{D, T}, radius) where {D, T}
     cell = @MVector zeros(Int, D)
