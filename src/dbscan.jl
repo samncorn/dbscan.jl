@@ -33,18 +33,31 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
     # query cells
     labels = zeros(UInt32, length(points))
-    chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
-    merges = [Tuple{Int, Int}[] for _ in chunks]
 
-    cell_chunk = Dict{SVector{D, Int32}, Int}()
-    for (i, chunk) in enumerate(chunks)
-        for cell in chunk
-            cell_chunk[cell] = i
-        end
+    # old chunking (almost random)
+    # chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
+    # merges = [Tuple{Int, Int}[] for _ in chunks]
+
+    # cell_chunk = Dict{SVector{D, Int32}, Int}()
+    # for (i, chunk) in enumerate(chunks)
+    #     for cell in chunk
+    #         cell_chunk[cell] = i
+    #     end
+    # end
+
+    # new chunking
+    # use larger chunks to distribute the threads
+    chunk_width = 2*radius
+    chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
+    for cell in keys(cells)
+        # with chunk side length, compute a broader key 
+        chunk = find_cell(cell, chunk_width)
+        push!(chunks[chunk], cell)
     end
 
+    chunk_keys = keys(chunks)
     Threads.@threads for i_c in 1:length(chunks)
-        chunk = chunks[i_c]
+        chunk = chunks[chunk_keys[i_c]]
         merge = merges[i_c]
         # # 
         # for celli in chunk
