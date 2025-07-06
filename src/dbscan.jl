@@ -113,17 +113,17 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     return labels
 end
 
-function count_neighbors(p::SVector{D, T}, radius, cells) where {D, T}
-    cell = find_cell(p, radius)
-    # for i in 2^length(p)
-    #     n = zero(MVector{D, Int})
-    #     for j in 1:length(p)
+# function count_neighbors(p::SVector{D, T}, radius, cells) where {D, T}
+#     cell = find_cell(p, radius)
+#     # for i in 2^length(p)
+#     #     n = zero(MVector{D, Int})
+#     #     for j in 1:length(p)
 
-    #     end
-    # end
-    for _neighbor in Iterators.product(((0, 1) for _ in 1:d)...)
-        cellj = SVector{D, Int}(_neighbor) + cell
-end
+#     #     end
+#     # end
+#     for _neighbor in Iterators.product(((0, 1) for _ in 1:d)...)
+#         cellj = SVector{D, Int}(_neighbor) + cell
+# end
 
 # function kernel_cells!(labels, merge, p::SVector{D, T}, cells, radius) where {T}
 
