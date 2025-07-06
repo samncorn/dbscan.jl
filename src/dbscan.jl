@@ -121,7 +121,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             end
         end
     end
-    @info @sprintf "merge list has %i pairs to check (%.3e Bytes)" sum(length(merges)) sum(sizeof.(merges))
+    @info @sprintf "merge list has %i pairs to check (%.3e Bytes)" sum(length.(merges)) sum(sizeof.(merges))
 
     for (i, j) in Iterators.flatten(merges)
         join_labels!(labels, i, j)
