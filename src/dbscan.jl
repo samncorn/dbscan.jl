@@ -16,7 +16,7 @@ dot(x, y) = sum(x .* y)
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1) where {D, T}
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e3) where {D, T}
     cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
@@ -39,7 +39,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     # new chunking
     # use larger chunks to distribute the threads
-    chunk_width = 10*radius
+    chunk_width = chunk_scale*radius
     chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
     for cell in keys(cells)
         # with chunk side length, compute a broader key 
