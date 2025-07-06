@@ -47,7 +47,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     # new chunking
     # use larger chunks to distribute the threads
-    chunk_width = 2*radius
+    chunk_width = 10*radius
     chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
     for cell in keys(cells)
         # with chunk side length, compute a broader key 
