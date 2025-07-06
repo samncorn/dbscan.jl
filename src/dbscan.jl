@@ -36,7 +36,6 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     # old chunking (almost random)
     # chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
-    # merges = [Tuple{Int, Int}[] for _ in chunks]
 
     # new chunking
     # use larger chunks to distribute the threads
@@ -51,6 +50,8 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             chunks[chunk] = [cell]
         end
     end
+
+    merges = [Tuple{Int, Int}[] for _ in chunks]
 
     chunk_keys = collect(keys(chunks))
     cell_chunk = Dict{SVector{D, Int32}, Int}()
@@ -107,12 +108,12 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                                 end
                             end
                         else
-                            # for j in cells[cellj]
-                            #     p_j = points[j]
-                            #     if dot(p_i - p_j, p_i - p_j) < radius^2
-                            #         push!(merge, (i, j))
-                            #     end
-                            # end
+                            for j in cells[cellj]
+                                p_j = points[j]
+                                if dot(p_i - p_j, p_i - p_j) < radius^2
+                                    push!(merge, (i, j))
+                                end
+                            end
                             continue
                         end
                     end
