@@ -53,7 +53,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     end
 
     cell_chunk = Dict{SVector{D, Int32}, Int}()
-    for (i, chunk) in enumerate(chunks)
+    for (i, (chunk, _)) in enumerate(chunks)
         for cell in chunk
             cell_chunk[cell] = i
         end
