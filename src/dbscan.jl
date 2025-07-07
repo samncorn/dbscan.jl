@@ -11,12 +11,26 @@ using Printf
 # convenience function so that we don't need linear algebra as a deopendecy
 dot(x, y) = sum(x .* y)
 
+# function DBSCAN(points, radius, min_pts, query, partition; n_threads = 1, )
+#     labels = zeros(length(points))
+
+#     # for 
+#     chunks = partition(points)
+#     Threads.@threads for i_th in 1:n_threads
+#         for i_c in i_th:n_threads:length(chunks)
+
+#         end
+#     end
+
+
+# end
+
 """ multithreaded fixed sized cell implementation
 
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e3) where {D, T}
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e3,part_dims = 1:D) where {D, T}
     cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
@@ -30,7 +44,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
         end
     end
 
-    _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
+    _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in part_dims)...))
     # query cells
     labels = zeros(UInt32, length(points))
 
@@ -62,7 +76,6 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
         end
     end
 
-    
     Threads.@threads for i_c in 1:length(chunks)
         chunk = chunks[chunk_keys[i_c]]
         merge = merges[i_c]
