@@ -33,7 +33,7 @@ dot(x, y) = sum(x .* y)
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e3, metric = SqEuclidean()) where {D, T}
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e4,) where {D, T}
     cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
@@ -57,10 +57,10 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     # new chunking
     # use larger chunks to distribute the threads
     chunk_width = chunk_scale*radius
-    chunks = Dict{SVector{3, Int32}, Vector{SVector{D, Int32}}}()
+    chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
     for cell in keys(cells)
         # with chunk side length, compute a broader key 
-        chunk = find_cell(SVector{3}(view(cell, 1:3)), chunk_width)
+        chunk = find_cell(cell, chunk_width)
         if haskey(chunks, chunk)
             push!(chunks[chunk], cell)
         else
@@ -103,7 +103,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
                     for j in cells[cellj]
                         p_j = points[j]
-                        if metric(p_i - p_j, p_i - p_j) < radius^2
+                        if dot(p_i - p_j, p_i - p_j) < radius^2
                             n_core += 1
                         end
                     end
@@ -120,14 +120,14 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                         if cell_chunk[cellj] == i_c
                             for j in cells[cellj]
                                 p_j = points[j]
-                                if metric(p_i - p_j, p_i - p_j) < radius^2
+                                if dot(p_i - p_j, p_i - p_j) < radius^2
                                     join_labels!(labels, i, j)
                                 end
                             end
                         else
                             for j in cells[cellj]
                                 p_j = points[j]
-                                if metric(p_i - p_j, p_i - p_j) < radius^2
+                                if dot(p_i - p_j, p_i - p_j) < radius^2
                                     push!(merge, (i, j))
                                 end
                             end
