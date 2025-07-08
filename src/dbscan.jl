@@ -33,7 +33,7 @@ dot(x, y) = sum(x .* y)
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = 1e5, max_pts = Inf) where {D, T}
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = Inf, max_pts = Inf) where {D, T}
     cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
@@ -48,11 +48,14 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     end
 
     # skipped overfilled cells
+    n_deleted = 0
     for (cell, idx) in cells
         if length(idx) > max_pts
             delete!(cells, cell)
+            n_deleted += 1
         end
     end
+    @info "deleted $(n_deleted) cells with > $(max_pts) points"
 
     _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
     # query cells
@@ -93,7 +96,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             # # 
             # for celli in chunk
             #     for i in cells[celli]
-            #         kernels_cells!(labels, merge, p_i, cells, radius)
+            #         kernel_cells!(labels, merge, p_i, cells, radius)
             #     end
             # end
             # #
