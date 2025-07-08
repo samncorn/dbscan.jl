@@ -86,37 +86,22 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
         end
     end
 
-    Threads.@threads for i_c in 1:length(chunks)
-        chunk = chunks[chunk_keys[i_c]]
-        merge = merges[i_c]
-        # # 
-        # for celli in chunk
-        #     for i in cells[celli]
-        #         kernels_cells!(labels, merge, p_i, cells, radius)
-        #     end
-        # end
-        # #
+    Threads.@threads for i_th in 1:n_threads
+        for i_c in i_th:n_threads:length(chunks)
+            chunk = chunks[chunk_keys[i_c]]
+            merge = merges[i_c]
+            # # 
+            # for celli in chunk
+            #     for i in cells[celli]
+            #         kernels_cells!(labels, merge, p_i, cells, radius)
+            #     end
+            # end
+            # #
 
-        for celli in chunk
-            for i in cells[celli]
-                p_i = points[i]
-                n_core = 0
-                for _n in _neighbor_cells
-                    cellj = celli + _n
-
-                    if !haskey(cells, cellj)
-                        continue
-                    end
-
-                    for j in cells[cellj]
-                        p_j = points[j]
-                        if dot(p_i - p_j, p_i - p_j) < radius^2
-                            n_core += 1
-                        end
-                    end
-                end
-                
-                if n_core >= min_pts # is core point
+            for celli in chunk
+                for i in cells[celli]
+                    p_i = points[i]
+                    n_core = 0
                     for _n in _neighbor_cells
                         cellj = celli + _n
 
@@ -124,21 +109,38 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                             continue
                         end
 
-                        if cell_chunk[cellj] == i_c
-                            for j in cells[cellj]
-                                p_j = points[j]
-                                if dot(p_i - p_j, p_i - p_j) < radius^2
-                                    join_labels!(labels, i, j)
-                                end
+                        for j in cells[cellj]
+                            p_j = points[j]
+                            if dot(p_i - p_j, p_i - p_j) < radius^2
+                                n_core += 1
                             end
-                        else
-                            for j in cells[cellj]
-                                p_j = points[j]
-                                if dot(p_i - p_j, p_i - p_j) < radius^2
-                                    push!(merge, (i, j))
-                                end
+                        end
+                    end
+                    
+                    if n_core >= min_pts # is core point
+                        for _n in _neighbor_cells
+                            cellj = celli + _n
+
+                            if !haskey(cells, cellj)
+                                continue
                             end
-                            # continue
+
+                            if cell_chunk[cellj] == i_c
+                                for j in cells[cellj]
+                                    p_j = points[j]
+                                    if dot(p_i - p_j, p_i - p_j) < radius^2
+                                        join_labels!(labels, i, j)
+                                    end
+                                end
+                            else
+                                for j in cells[cellj]
+                                    p_j = points[j]
+                                    if dot(p_i - p_j, p_i - p_j) < radius^2
+                                        push!(merge, (i, j))
+                                    end
+                                end
+                                # continue
+                            end
                         end
                     end
                 end
