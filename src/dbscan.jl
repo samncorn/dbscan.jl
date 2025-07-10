@@ -179,7 +179,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     # empty!(merges)
     final_labels = zeros(UInt, length(points))
     for _labels in labels
-        for (i, l) in eachindex(_labels)
+        for (i, l) in pairs(_labels)
             if l == 0
                 continue
             end
