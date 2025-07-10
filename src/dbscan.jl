@@ -95,6 +95,10 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
     merges = [Tuple{Int, Int}[] for _ in chunks]
+    @info "using $(2^depth) chunks"
+    for chunk in chunks
+        @info "chunk $(chunk)"
+
 
     chunk_keys = collect(keys(chunks))
     # cell_chunk = Dict{SVector{D, Int32}, Int}()
