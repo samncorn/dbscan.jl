@@ -187,7 +187,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             if final_labels[i] == 0
                 final_labels[i] = l
             else
-                join_labels!(final_labels, final_labels[i], j)
+                join_labels!(final_labels, final_labels[i], l)
             end
         end
     end
