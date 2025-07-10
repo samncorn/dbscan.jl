@@ -98,6 +98,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     @info "using $(2^depth) chunks"
     for chunk in chunks
         @info "chunk $(chunk)"
+    end
 
 
     chunk_keys = collect(keys(chunks))
