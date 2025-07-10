@@ -59,7 +59,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
     # query cells
-    labels = zeros(UInt32, length(points))
+    # labels = zeros(UInt32, length(points))
 
     # old chunking (almost random)
     # chunks = collect(Iterators.partition(keys(cells), floor(Int, length(cells) / n_threads)))
@@ -98,12 +98,12 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     end
     tree   = KDTree(points; leafsize = leafsize, reorder = false)
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
-    merges = [Tuple{Int, Int}[] for _ in chunks]
+    # merges = [Tuple{Int, Int}[] for _ in chunks]
+    labels = [zeros(UInt, length(points)) for _ in chunks]
     @info "using $(length(chunks)) chunks, leafsize $(leafsize)"
     for chunk in chunks
         @info "chunk $(chunk)"
     end
-
 
     chunk_keys = collect(keys(chunks))
     # cell_chunk = Dict{SVector{D, Int32}, Int}()
@@ -122,7 +122,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     Threads.@threads for i_th in 1:n_threads
         for i_c in i_th:n_threads:length(chunks)
             chunk = chunks[chunk_keys[i_c]]
-            merge = merges[i_c]
+            # merge = merges[i_c]
 
             for i_tree in chunk
                 # i = tree.indices[i_tree]
@@ -156,11 +156,12 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                         for j in cells[cellj]
                             p_j = points[j]
                             if dot(p_i - p_j, p_i - p_j) < radius^2
-                                if in(j, chunk)
-                                    join_labels!(labels, i, j)
-                                else
-                                    push!(merge, (i, j))
-                                end
+                                join_labels!(labels[i_c], i, j)
+                                # if in(j, chunk)
+                                #     join_labels!(labels, i, j)
+                                # else
+                                #     push!(merge, (i, j))
+                                # end
                             end
                         end
                     end
@@ -170,12 +171,26 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     end
     @info @sprintf "merge list has %i pairs to check (%.3e Bytes)" sum(length.(merges)) sum(sizeof.(merges))
 
-    for (i, j) in Iterators.flatten(merges)
-        join_labels!(labels, i, j)
-    end
+    # for (i, j) in Iterators.flatten(merges)
+    #     join_labels!(labels, i, j)
+    # end
 
-    empty!.(merges)
-    empty!(merges)
+    # empty!.(merges)
+    # empty!(merges)
+    final_labels = zeros(UInt, length(points))
+    for _labels in labels
+        for (i, l) in _labels
+            if l == 0
+                continue
+            end
+
+            if final_labels[i] == 0
+                final_labels[i] = l
+            else
+                join_labels!(final_labels, final_labels[i], j)
+            end
+        end
+    end
 
     promote_labels!(labels)
 
