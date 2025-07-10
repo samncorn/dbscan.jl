@@ -128,7 +128,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                 # i = tree.indices[i_tree]
                 i = idx_map[i_tree]
                 p_i = points[i]
-                celli = find_cell(p_i, radius)
+                celli = find_cell(p_i - center, radius)
                 n_core = 0
                 for _n in _neighbor_cells
                     cellj = celli + _n
