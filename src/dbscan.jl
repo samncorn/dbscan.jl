@@ -55,7 +55,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
             n_deleted += 1
         end
     end
-    @info "deleted $(n_deleted) cells with > $(max_pts) points"
+    # @info "deleted $(n_deleted) cells with > $(max_pts) points"
 
     _neighbor_cells = map(x -> SVector{D}(x), Iterators.product(((0, 1) for _ in 1:D)...))
     # query cells
@@ -100,10 +100,10 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
     # merges = [Tuple{Int, Int}[] for _ in chunks]
     labels = [zeros(UInt, length(points)) for _ in chunks]
-    @info "using $(length(chunks)) chunks, leafsize $(leafsize)"
-    for chunk in chunks
-        @info "chunk $(chunk)"
-    end
+    # @info "using $(length(chunks)) chunks, leafsize $(leafsize)"
+    # for chunk in chunks
+    #     # @info "chunk $(chunk)"
+    # end
 
     chunk_keys = collect(keys(chunks))
     # cell_chunk = Dict{SVector{D, Int32}, Int}()
