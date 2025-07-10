@@ -99,7 +99,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     tree   = KDTree(points; leafsize = leafsize, reorder = false)
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
     merges = [Tuple{Int, Int}[] for _ in chunks]
-    @info "using $(2^depth) chunks, leafsize $(leafsize), depth $(depth)"
+    @info "using $(length(chunks)) chunks, leafsize $(leafsize)"
     for chunk in chunks
         @info "chunk $(chunk)"
     end
