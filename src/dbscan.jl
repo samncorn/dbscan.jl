@@ -192,9 +192,9 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
         end
     end
 
-    promote_labels!(labels)
+    promote_labels!(final_labels)
 
-    return labels
+    return final_labels
 end
 
 # function count_neighbors(p::SVector{D, T}, radius, cells) where {D, T}
