@@ -33,7 +33,7 @@ dot(x, y) = sum(x .* y)
 bins points into cell with width equal to the clustering radius. Then the neighborhood check is equivalent to checking 
 the surrounding cells (if they exist, only cells with points are instantiated).
 """
-function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, chunk_scale = Inf, max_pts = Inf) where {D, T}
+function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_threads = 1, max_pts = Inf) where {D, T}
     cells = Dict{SVector{D, Int32}, Vector{Int}}()
     center = mean(points)
 
@@ -66,45 +66,70 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
 
     # new chunking
     # use larger chunks to distribute the threads
-    chunk_width = chunk_scale*radius
-    chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
-    for cell in keys(cells)
-        # with chunk side length, compute a broader key 
-        chunk = find_cell(cell, chunk_width)
-        if haskey(chunks, chunk)
-            push!(chunks[chunk], cell)
-        else
-            chunks[chunk] = [cell]
-        end
-    end
-    @info @sprintf "divided cells into %i chunks of width %.3e" length(chunks) chunk_width
+    # chunk_width = chunk_scale*radius
+    # chunks = Dict{SVector{D, Int32}, Vector{SVector{D, Int32}}}()
+    # for cell in keys(cells)
+    #     # with chunk side length, compute a broader key 
+    #     chunk = find_cell(cell, chunk_width)
+    #     if haskey(chunks, chunk)
+    #         push!(chunks[chunk], cell)
+    #     else
+    #         chunks[chunk] = [cell]
+    #     end
+    # end
+    
 
+    # new new chunking
+    # based on number of threads, choose level to partition "quad"rants
+    # n_quads  = 2^D
+    # n_chunks = 1
+    # while n_chunks <= n_threads
+    #     n_chunks *= n_quads
+    # end
+    # @info @sprintf "divided cells into %i chunks of width %.3e" length(chunks) chunk_width
+
+    # new new new chunking
+    depth = ceil(Int, log2(length(points)))
+    leafsize = 2^depth
+    tree = KDTree(points; leafsize = leafsize, reorder = false)
+
+    chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
     merges = [Tuple{Int, Int}[] for _ in chunks]
 
     chunk_keys = collect(keys(chunks))
-    cell_chunk = Dict{SVector{D, Int32}, Int}()
-    for (i, chunk) in enumerate(chunk_keys)
-        for cell in chunks[chunk]
-            cell_chunk[cell] = i
-        end
-    end
+    # cell_chunk = Dict{SVector{D, Int32}, Int}()
+    # for (i, chunk) in enumerate(chunk_keys)
+    #     for cell in chunks[chunk]
+    #         cell_chunk[cell] = i
+    #     end
+    # end
 
     Threads.@threads for i_th in 1:n_threads
         for i_c in i_th:n_threads:length(chunks)
             chunk = chunks[chunk_keys[i_c]]
             merge = merges[i_c]
-            # # 
-            # for celli in chunk
-            #     for i in cells[celli]
-            #         kernel_cells!(labels, merge, p_i, cells, radius)
-            #     end
-            # end
-            # #
 
-            for celli in chunk
-                for i in cells[celli]
-                    p_i = points[i]
-                    n_core = 0
+            for i_tree in chunk
+                i = tree.indices[i_tree]
+                p_i = points[i]
+                celli = find_cell(p_i, radius)
+                n_core = 0
+                for _n in _neighbor_cells
+                    cellj = celli + _n
+
+                    if !haskey(cells, cellj)
+                        continue
+                    end
+
+                    for j in cells[cellj]
+                        p_j = points[j]
+                        if dot(p_i - p_j, p_i - p_j) < radius^2
+                            n_core += 1
+                        end
+                    end
+                end
+                
+                if n_core >= min_pts # is core point
                     for _n in _neighbor_cells
                         cellj = celli + _n
 
@@ -115,34 +140,11 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
                         for j in cells[cellj]
                             p_j = points[j]
                             if dot(p_i - p_j, p_i - p_j) < radius^2
-                                n_core += 1
-                            end
-                        end
-                    end
-                    
-                    if n_core >= min_pts # is core point
-                        for _n in _neighbor_cells
-                            cellj = celli + _n
-
-                            if !haskey(cells, cellj)
-                                continue
-                            end
-
-                            if cell_chunk[cellj] == i_c
-                                for j in cells[cellj]
-                                    p_j = points[j]
-                                    if dot(p_i - p_j, p_i - p_j) < radius^2
-                                        join_labels!(labels, i, j)
-                                    end
+                                if in(j, chunk)
+                                    join_labels!(labels, i, j)
+                                else
+                                    push!(merge, (i, j))
                                 end
-                            else
-                                for j in cells[cellj]
-                                    p_j = points[j]
-                                    if dot(p_i - p_j, p_i - p_j) < radius^2
-                                        push!(merge, (i, j))
-                                    end
-                                end
-                                # continue
                             end
                         end
                     end
@@ -189,58 +191,188 @@ function find_cell(point::SVector{D, T}, radius) where {D, T}
     # return join(cell, ',')
 end
 
-function DBSCAN_tree(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
-    t0 = now()
-    tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
-    tf = now()
-    @debug("$(canonicalize(tf - t0)) to build kdtree")
+function dbscan_tree(points, radius, min_pts; leaf_size = 100, metric = Euclidean(), n_threads = 1)
+    # construct the tree
+    tree = KDTree(points, metric; leafsize = leaf_size)
 
-    N = length(points)
-    labels = zeros(Int, N)
+    # construct the partitioning bounds
 
-    # no point in chunking, override
-    n_threads = N > 100n_threads ? n_threads : 1 
+    # loop through points building clusters
+    labels = zeros(UInt, length(points))
 
-    mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_threads)
-    chunksize = ceil(Int, N / n_threads)
-    chunks = collect(Iterators.partition(eachindex(points), chunksize))
-    @debug "performing range searches"
-    Threads.@threads for i_thread in 1:n_threads
-        @debug "starting thread $(i_thread)"
-        t0 = now()
-        idxs = chunks[i_thread]
-        mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts; reordered = reorder)
-        tf = now()
-        @debug("$(canonicalize(tf - t0)) to process thread $(i_thread)")
-    end 
+end
 
-    # locks = [ReentrantLock() for _ in labels]
-    for (m_i, m) in enumerate(mergers)
-        t0 = now()
-        # Threads.@threads for i_thread in 1:n_threads
-        #     for k in i_thread:n_threads:length(m)
-        #         (i, j) = m[k]
-        #         join_labels_locking!(labels, locks, i, j)
-        #     end
-        # end
-        # non parallel version
-        for (i, j) in m
-            join_labels!(labels, i, j)
-        end
-        tf = now()
-        @debug("$(canonicalize(tf - t0)) to merge clusters $(m_i)")
+# we need a custom function for rolling through points
+# function tree_search(point, radius, tree)
+#     # search the nodes for potential overlap
+#     # climb the tree from left to right, ascending nodes the intersect the search box
+#     node = 1
+#     while node <= # condition for being able to ascend one of the branch nodes
+
+#     end
+# end
+
+# struct TreeNode{V}
+#     index::Int
+#     range::UnitRange{Int}
+#     bounds::NearestNeighbors.HyperRectangle{V}
+# end
+
+""" apply a function f to all points in a tree with radius of point
+f must be a single function of the point index (any other information has to be passed by closure)
+
+hacked together code in the main nearest nerighbors branch
+"""
+function inrange(
+    f::F, 
+    tree::KDTree,
+    point::AbstractVector,
+    radius::Number,
+    # idx_in_ball::Union{Nothing, Vector{<:Integer}} = Int[]
+    ) where {F}
+    init_min = NearestNeighbors.get_min_distance_no_end(tree.metric, tree.hyper_rec, point)
+    return inrange_kernel(f, tree, 1, point, NearestNeighbors.eval_pow(tree.metric, radius), tree.hyper_rec, init_min)
+end
+
+function inrange_kernel(
+    f::F, 
+    tree::KDTree,
+    index::Int,
+    point::AbstractVector,
+    r::Number,
+    # idx_in_ball::Union{Nothing, Vector{<:Integer}},
+    hyper_rec::NearestNeighbors.HyperRectangle,
+    min_dist
+    ) where {F}
+    # Point is outside hyper rectangle, skip the whole sub tree
+    if min_dist > r
+        # return 0
+        return nothing
     end
 
-    @debug "updating labels to cluster roots"
-    t0 = now()
-    promote_labels!(labels)
-    tf = now()
-    @debug("$(canonicalize(tf - t0)) to update labels")
-    # collect labels into clusters
+    # At a leaf node. Go through all points in node and add those in range
+    if NearestNeighbors.isleaf(tree.tree_data.n_internal_nodes, index)
+        return apply_inrange(f, tree, index, point, r)
+    end
 
-    @debug "DBSCAN completed"
-    return collect_labels(labels)
+    split_val = tree.split_vals[index]
+    split_dim = tree.split_dims[index]
+    lo = hyper_rec.mins[split_dim]
+    hi = hyper_rec.maxes[split_dim]
+    p_dim = point[split_dim]
+    split_diff = p_dim - split_val
+    M = tree.metric
+
+    # count = 0
+
+    if split_diff > 0 # Point is to the right of the split value
+        close = NearestNeighbors.getright(index)
+        far = NearestNeighbors.getleft(index)
+        hyper_rec_far = NearestNeighbors.HyperRectangle(hyper_rec.mins, @inbounds setindex(hyper_rec.maxes, split_val, split_dim))
+        hyper_rec_close = NearestNeighbors.HyperRectangle(@inbounds(setindex(hyper_rec.mins, split_val, split_dim)), hyper_rec.maxes)
+        ddiff = max(zero(p_dim - hi), p_dim - hi)
+    else # Point is to the left of the split value
+        close = NearestNeighbors.getleft(index)
+        far = NearestNeighbors.getright(index)
+        hyper_rec_far = NearestNeighbors.HyperRectangle(@inbounds(setindex(hyper_rec.mins, split_val, split_dim)), hyper_rec.maxes)
+        hyper_rec_close = NearestNeighbors.HyperRectangle(hyper_rec.mins, @inbounds setindex(hyper_rec.maxes, split_val, split_dim))
+        ddiff = max(zero(lo - p_dim), lo - p_dim)
+    end
+    # Call closer sub tree
+    inrange_kernel(f, tree, close, point, r, hyper_rec_close, min_dist)
+
+    # Call further sub tree with the new min distance
+    split_diff_pow = NearestNeighbors.eval_pow(M, split_diff)
+    ddiff_pow = NearestNeighbors.eval_pow(M, ddiff)
+    diff_tot = NearestNeighbors.eval_diff(M, split_diff_pow, ddiff_pow, split_dim)
+    new_min = NearestNeighbors.eval_reduce(M, min_dist, diff_tot)
+    inrange_kernel(f, tree, far, point, r, hyper_rec_far, new_min)
+    # return count
+    return nothing
 end
+
+function apply_inrange(f::F, tree::NNTree, index::Int, point::AbstractVector, r::Number) where {F}
+    # count = 0
+    for z in NearestNeighbors.get_leaf_range(tree.tree_data, index)
+        idx = tree.reordered ? z : tree.indices[z]
+        if NearestNeighbors.check_in_range(tree.metric, tree.data[idx], point, r)
+            # count += 1
+            # idx_in_ball !== nothing && push!(idx_in_ball, idx)
+            f(idx)
+        end
+    end
+    # return count
+end
+
+"""
+single threaded test
+"""
+function DBSCAN_tree(points, radius, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
+    tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
+    
+    labels = zeros(UInt, length(points))
+    for (i, p) in enumerate(points)
+        n = inrangecount(tree, p, radius)
+        if n >= min_pts
+            inrange(j -> join_labels!(labels, i, j), tree, p, radius)
+        end
+    end
+
+    return labels
+end
+
+# function DBSCAN_tree(points, r, min_pts; leafsize = 25, reorder = true, n_threads = 1, metric = Euclidean(), max_pts = Inf)
+#     t0 = now()
+#     tree = KDTree(points, metric; leafsize = leafsize, reorder = reorder)
+#     tf = now()
+#     @debug("$(canonicalize(tf - t0)) to build kdtree")
+
+#     N = length(points)
+#     labels = zeros(Int, N)
+
+#     # no point in chunking, override
+#     n_threads = N > 100n_threads ? n_threads : 1 
+
+#     mergers = Vector{Vector{Tuple{Int, Int}}}(undef, n_threads)
+#     chunksize = ceil(Int, N / n_threads)
+#     chunks = collect(Iterators.partition(eachindex(points), chunksize))
+#     @debug "performing range searches"
+#     Threads.@threads for i_thread in 1:n_threads
+#         @debug "starting thread $(i_thread)"
+#         t0 = now()
+#         idxs = chunks[i_thread]
+#         mergers[i_thread] = _dbscan_kernel!(labels, tree, points, idxs, r, min_pts, max_pts; reordered = reorder)
+#         tf = now()
+#         @debug("$(canonicalize(tf - t0)) to process thread $(i_thread)")
+#     end 
+
+#     # locks = [ReentrantLock() for _ in labels]
+#     for (m_i, m) in enumerate(mergers)
+#         t0 = now()
+#         # Threads.@threads for i_thread in 1:n_threads
+#         #     for k in i_thread:n_threads:length(m)
+#         #         (i, j) = m[k]
+#         #         join_labels_locking!(labels, locks, i, j)
+#         #     end
+#         # end
+#         # non parallel version
+#         for (i, j) in m
+#             join_labels!(labels, i, j)
+#         end
+#         tf = now()
+#         @debug("$(canonicalize(tf - t0)) to merge clusters $(m_i)")
+#     end
+
+#     @debug "updating labels to cluster roots"
+#     t0 = now()
+#     promote_labels!(labels)
+#     tf = now()
+#     @debug("$(canonicalize(tf - t0)) to update labels")
+#     # collect labels into clusters
+
+#     @debug "DBSCAN completed"
+#     return collect_labels(labels)
+# end
 
 function _dbscan_kernel!(labels, tree, points, points_idx, r, min_pts, max_pts; reordered = false)
     # if reordered, do the operations on the trees internal ordering, for better locality
