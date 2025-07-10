@@ -89,10 +89,14 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     # @info @sprintf "divided cells into %i chunks of width %.3e" length(chunks) chunk_width
 
     # new new new chunking
-    depth = ceil(Int, log2(length(points)))
-    leafsize = 2^depth
-    tree = KDTree(points; leafsize = leafsize, reorder = false)
-
+    # depth = ceil(Int, log2(length(points)))
+    depth    = 0
+    leafsize = length(points)
+    while 2^depth < n_threads
+        depth *= 2
+        leafsize = leafsize - leafsize ÷ 2
+    end
+    tree   = KDTree(points; leafsize = leafsize, reorder = false)
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
     merges = [Tuple{Int, Int}[] for _ in chunks]
     @info "using $(2^depth) chunks, leafsize $(leafsize), depth $(depth)"
