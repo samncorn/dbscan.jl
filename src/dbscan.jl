@@ -94,7 +94,7 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     leafsize = length(points)
     while n_leafs < n_threads
         n_leafs *= 2
-        leafsize = leafsize ÷ 2
+        leafsize = leafsize - leafsize ÷ 2
     end
     tree   = KDTree(points; leafsize = leafsize, reorder = false)
     chunks = [NearestNeighbors.get_leaf_range(tree.tree_data, i+tree.tree_data.n_internal_nodes) for i in 1:tree.tree_data.n_leafs]
@@ -113,13 +113,20 @@ function DBSCAN_cells(points::AbstractVector{SVector{D, T}}, radius, min_pts; n_
     #     end
     # end
 
+    # idx_map = (1:length(points))[tree.indices]
+    idx_map = zeros(UInt, length(points))
+    for (i, j) in enumerate(tree.indices)
+        idx_map[j] = i
+    end
+
     Threads.@threads for i_th in 1:n_threads
         for i_c in i_th:n_threads:length(chunks)
             chunk = chunks[chunk_keys[i_c]]
             merge = merges[i_c]
 
             for i_tree in chunk
-                i = tree.indices[i_tree]
+                # i = tree.indices[i_tree]
+                i = idx_map[i_tree]
                 p_i = points[i]
                 celli = find_cell(p_i, radius)
                 n_core = 0
